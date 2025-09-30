@@ -1,4 +1,4 @@
-#include "orbit.h"
+#include "drag.H"
 #include <cmath>
 
 // =============================
@@ -31,7 +31,7 @@ Eigen::Vector3d DragAccel::computeAcceleration(
 ) const {
     double v = vel.norm();
     if (v == 0.0) return Eigen::Vector3d::Zero();
-    return -0.5 * sc.Cd * sc.area * rho0_ * v / sc.mass * vel;
+    return -0.5 * sc.Cd() * sc.area() * rho0_ * v / sc.mass() * vel;
 }
 
 // =============================
@@ -47,7 +47,7 @@ Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     double
 ) const {
     Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
-    return (P0_ * sc.Cr * sc.area / sc.mass) * sunDir;
+    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
 }
 
 // =============================

@@ -14,12 +14,48 @@ struct State {
     Eigen::Vector3d vel; // velocity [m/s]
 };
 
-struct Spacecraft {
-    double mass;  // [kg]
-    double area;  // [m^2]
-    double Cd;    // drag coefficient
-    double Cr;    // reflectivity coefficient
+// =============================
+// Spacecraft class
+// =============================
+class Spacecraft {
+public:
+    // Constructor with required parameters
+    Spacecraft(double mass, double area, double Cd, double Cr)
+        : mass_(mass), area_(area), Cd_(Cd), Cr_(Cr) 
+    {
+        if (mass <= 0.0) throw std::invalid_argument("Mass must be positive");
+        if (area <= 0.0) throw std::invalid_argument("Area must be positive");
+        if (Cd < 0.0) throw std::invalid_argument("Cd must be non-negative");
+        if (Cr < 0.0) throw std::invalid_argument("Cr must be non-negative");
+    }
+
+    // Default constructor (optional)
+    Spacecraft() : mass_(1.0), area_(1.0), Cd_(2.2), Cr_(1.0) {}
+
+    // Getters
+    double mass() const { return mass_; }
+    double area() const { return area_; }
+    double Cd()   const { return Cd_; }
+    double Cr()   const { return Cr_; }
+
+    // Setters with validation
+    void setMass(double m) { if(m>0.0) mass_ = m; }
+    void setArea(double a) { if(a>0.0) area_ = a; }
+    void setCd(double c)   { if(c>=0.0) Cd_ = c; }
+    void setCr(double r)   { if(r>=0.0) Cr_ = r; }
+
+private:
+    double mass_;
+    double area_;
+    double Cd_;
+    double Cr_;
 };
+// struct Spacecraft {
+//     double mass;  // [kg]
+//     double area;  // [m^2]
+//     double Cd;    // drag coefficient
+//     double Cr;    // reflectivity coefficient
+// };
 
 // =============================
 // Acceleration Models

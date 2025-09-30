@@ -50,12 +50,7 @@ private:
     double Cd_;
     double Cr_;
 };
-// struct Spacecraft {
-//     double mass;  // [kg]
-//     double area;  // [m^2]
-//     double Cd;    // drag coefficient
-//     double Cr;    // reflectivity coefficient
-// };
+
 
 // =============================
 // Acceleration Models

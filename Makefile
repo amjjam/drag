@@ -34,7 +34,7 @@ install: $(LIB)
 	cp $(LIB) /opt/drag/lib/
 
 # Copy public header(s) to flat include
-	cp include/drag.h /opt/drag/include/
+	cp include/drag.H /opt/drag/include/
 
 # Copy Eigen headers
 	cp -r include/Eigen /opt/drag/include/

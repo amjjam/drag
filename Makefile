@@ -1,6 +1,6 @@
-# Compiler
+# Compiler, MODIFIED
 CXX = g++
-CXXFLAGS = -std=c++17 -O2 -fPIC -Iinclude
+CXXFLAGS = -std=c++17 -O2 -fPIC -Iinclude -I/usr/local/include
 
 # Source and object files
 SRC = src/drag.cpp
@@ -16,9 +16,9 @@ all: $(LIB)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Link shared library
+# Link shared library, MODIFIED
 $(LIB): $(OBJ)
-	$(CXX) -shared -o $@ $^
+	$(CXX) -shared -o $@ $^ -lGeographicLib -L/usr/local/lib -lnrlmsise00
 
 # Clean build files
 clean:

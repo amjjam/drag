@@ -5,6 +5,14 @@
 #include <vector>
 #include <memory>
 
+#include <string>
+#include <GeographicLib/GravityModel.hpp>
+#include <GeographicLib/Constants.hpp>
+
+#include <nrlmsise00/Nrlmsise00.hpp>
+#include <ctime>
+#include <array>
+
 // =============================
 // Data Structures
 // =============================
@@ -80,6 +88,22 @@ private:
     double mu_;
 };
 
+
+class EGM2008GravityAccel : public AccelModel {
+public:
+	explicit EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order);
+	Eigen::Vector3d computeAcceleration(
+	    const Spacecraft& sc,
+	    const Eigen::Vector3d& pos,
+	    const Eigen::Vector3d& vel,
+	    double t
+	) const override;
+private:
+	GeographicLib::GravityModel grav_;
+	double omega_;
+};
+
+
 class DragAccel : public AccelModel {
 public:
     explicit DragAccel(double rho0);
@@ -93,9 +117,33 @@ private:
     double rho0_;
 };
 
+class MsisDragAccel : public AccelModel{
+public:
+    MsisDragAccel(std::time_t epoch_seconds, double f107a, double f107, double ap);
+
+    Eigen::Vector3d computeAcceleration(
+	const Spacecraft& sc,
+	const Eigen::Vector3d& pos,
+	const Eigen::Vector3d& vel,
+	double t
+    ) const override;
+private:
+    double f107_avg;
+    double f107_daily;
+    double ap_val;
+
+    std::time_t epoch_start_time;
+
+    const GeographicLib::Geocentric earth;
+    const double omega;
+
+    mutable std::unique_ptr< ::atmos::CNrlmsise00 > msis_model_ptr;
+    mutable std::array<double, 7> ap_array;
+};
+
 class SolarRadiationAccel : public AccelModel {
 public:
-    explicit SolarRadiationAccel(double P0);
+    explicit SolarRadiationAccel(double P0, double earth_radius);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
@@ -104,6 +152,7 @@ public:
     ) const override;
 private:
     double P0_;
+    double earth_radius_;
 };
 
 class AccelAggregator : public AccelModel {

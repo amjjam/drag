@@ -17,6 +17,32 @@ Eigen::Vector3d GravityAccel::computeAcceleration(
     return -mu_ * pos / (r * r * r);
 }
 
+// ==============================
+// EGM2008GravityAccel
+// ==============================
+
+EGM2008GravityAccel::EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order)
+    	: grav_(model_name, "", max_degree, max_order), omega_(GeographicLib::Constants::WGS84_omega()) {}
+Eigen::Vector3d EGM2008GravityAccel::computeAcceleration(
+	const Spacecraft&,
+	const Eigen::Vector3d& pos_eci,
+	const Eigen::Vector3d&,
+	double t
+) const {
+	const double rotation_angle = omega_ * t;
+	Eigen::Matrix3d C_e_i;
+	C_e_i <<  cos(rotation_angle), sin(rotation_angle), 0,
+	         -sin(rotation_angle), cos(rotation_angle), 0,
+	          0,                   0,                 1;
+
+	Eigen::Vector3d pos_ecef = C_e_i * pos_eci;
+	Eigen::Vector3d g_ecef;
+	grav_.V(pos_ecef.x(), pos_ecef.y(), pos_ecef.z(), g_ecef.x(), g_ecef.y(), g_ecef.z());
+	Eigen::Matrix3d C_i_e = C_e_i.transpose();
+	Eigen::Vector3d g_eci = C_i_e * g_ecef;
+	return g_eci;
+}
+
 // =============================
 // DragAccel
 // =============================
@@ -34,11 +60,100 @@ Eigen::Vector3d DragAccel::computeAcceleration(
     return -0.5 * sc.Cd() * sc.area() * rho0_ * v / sc.mass() * vel;
 }
 
+
+// =============================
+// MSISDragAccel
+// =============================
+
+MsisDragAccel::MsisDragAccel(std::time_t epoch_seconds, double f107a, double f107, double ap)
+    : epoch_start_time(epoch_seconds),
+      f107_avg(f107a),
+      f107_daily(f107),
+      ap_val(ap),
+      earth(GeographicLib::Constants::WGS84_a(), GeographicLib::Constants::WGS84_f()),
+      omega(GeographicLib::Constants::WGS84_omega())
+{
+    // --- Initialize the MSIS model ---
+    // This constructor requires a flags array.
+    std::array<int, 24> flags;
+    
+    // Flag 0 = 1 means use SI units (kg/m^3), which is what we want
+    flags[0] = 1; 
+    
+    // Set all other flags to 'on' (standard practice)
+    for (int i = 1; i < 24; i++) {
+        flags[i] = 1;
+    }
+
+    // Create the model object and store it in our smart pointer
+    msis_model_ptr = std::make_unique< ::atmos::CNrlmsise00 >(flags);
+
+    // --- Initialize the AP array ---
+    // Fill the entire array with the single daily 'ap' value
+    ap_array.fill(ap_val);
+}
+
+Eigen::Vector3d MsisDragAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d& pos_eci,
+    const Eigen::Vector3d& vel_eci,
+    double t
+) const {
+    
+    // === 1. Calculate Current Time ===
+    std::time_t current_time_sec = epoch_start_time + static_cast<long>(t);
+    std::tm current_time_utc;
+    gmtime_r(&current_time_sec, &current_time_utc); // Thread-safe UTC time
+
+    int doy = current_time_utc.tm_yday + 1; // Day of year (tm_yday is 0-365)
+    double sec_of_day = current_time_utc.tm_hour * 3600.0 + 
+                       current_time_utc.tm_min * 60.0 + 
+                       current_time_utc.tm_sec;
+
+    // === 2. Convert ECI Position to Geodetic (Lat, Lon, Alt) ===
+    double rotation_angle = omega * t; // Simplified rotation
+    Eigen::Matrix3d C_e_i;  // ECI to ECEF
+    C_e_i <<  cos(rotation_angle), sin(rotation_angle), 0,
+             -sin(rotation_angle), cos(rotation_angle), 0,
+              0,                   0,                   1;
+    Eigen::Vector3d r_ecef = C_e_i * pos_eci;
+
+    double lat, lon, alt_m;
+    earth.Reverse(r_ecef.x(), r_ecef.y(), r_ecef.z(), lat, lon, alt_m);
+    double alt_km = alt_m / 1000.0; // Library requires altitude in [km]
+
+    // === 3. Call MSIS ===
+    // Use the simple 'density' function from the library
+    double rho = msis_model_ptr->density(
+        doy,
+        sec_of_day,
+        alt_km,
+        lat,
+        lon,
+        f107_avg,
+        f107_daily,
+        ap_array // Pass the stored AP array
+    );
+    // 'rho' is now in [kg/m^3] because we set flag 0 = 1.
+
+    // === 4. Calculate Drag ===
+    Eigen::Vector3d v_atm_eci = Eigen::Vector3d(-omega * pos_eci.y(), omega * pos_eci.x(), 0.0);
+    Eigen::Vector3d v_rel = vel_eci - v_atm_eci;
+    double v_mag = v_rel.norm();
+
+    if (v_mag == 0.0) return Eigen::Vector3d::Zero();
+
+    double B = -0.5 * (sc.Cd() * sc.area() / sc.mass()) * rho * v_mag;
+    Eigen::Vector3d a_drag_eci = B * v_rel;
+
+    return a_drag_eci;
+}
+
 // =============================
 // SolarRadiationAccel
 // =============================
 
-SolarRadiationAccel::SolarRadiationAccel(double P0) : P0_(P0) {}
+SolarRadiationAccel::SolarRadiationAccel(double P0, double earth_radius) : P0_(P0), earth_radius_(earth_radius) {}
 
 Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     const Spacecraft& sc,
@@ -46,6 +161,14 @@ Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     const Eigen::Vector3d&,
     double
 ) const {
+    if (pos.x() < 0.0) {
+	double r_perp_sq = pos.y() * pos.y() + pos.z() * pos.z();
+
+	if (r_perp_sq < (earth_radius_ * earth_radius_)) {
+	    return Eigen::Vector3d::Zero();
+	}
+    }
+
     Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
     return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
 }

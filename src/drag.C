@@ -153,24 +153,28 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
 // SolarRadiationAccel
 // =============================
 
-SolarRadiationAccel::SolarRadiationAccel(double P0, double earth_radius) : P0_(P0), earth_radius_(earth_radius) {}
+SolarRadiationAccel::SolarRadiationAccel(double P0, double earth_radius, std::time_t epoch) 
+    : P0_(P0), earth_radius_(earth_radius), epoch_(epoch) {}
 
 Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     const Spacecraft& sc,
+    const Eigen::Vector3d& pos,
     const Eigen::Vector3d&,
-    const Eigen::Vector3d&,
-    double
+    double t
 ) const {
-    if (pos.x() < 0.0) {
-	double r_perp_sq = pos.y() * pos.y() + pos.z() * pos.z();
+    std::time_t current_time = epoch_ + static_cast<long>(t);
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+    Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
 
-	if (r_perp_sq < (earth_radius_ * earth_radius_)) {
+    double s = pos.dot(sun_dir);
+    if (s < 0) {
+	Eigen::Vector3d dist_vec = pos - (s * sun_dir);
+	double dist_sq = dist_vec.squaredNorm();
+ 	if (dist_sq < (earth_radius_ * earth_radius_)) {
 	    return Eigen::Vector3d::Zero();
-	}
+        }
     }
-
-    Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
-    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
+    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * (-sun_dir);
 }
 
 // =============================

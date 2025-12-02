@@ -35,6 +35,8 @@ install: $(LIB)
 
 # Copy public header(s) to flat include
 	cp include/drag.H /opt/drag/include/
+	cp include/SunEphemeris.H /opt/drag/include/
 
 # Copy Eigen headers
 	cp -r include/Eigen /opt/drag/include/
+

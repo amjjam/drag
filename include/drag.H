@@ -12,6 +12,7 @@
 #include <nrlmsise00/Nrlmsise00.hpp>
 #include <ctime>
 #include <array>
+#include <SunEphemeris.H>
 
 // =============================
 // Data Structures
@@ -143,7 +144,7 @@ private:
 
 class SolarRadiationAccel : public AccelModel {
 public:
-    explicit SolarRadiationAccel(double P0, double earth_radius);
+    explicit SolarRadiationAccel(double P0, double earth_radius, std::time_t epoch);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
@@ -153,6 +154,7 @@ public:
 private:
     double P0_;
     double earth_radius_;
+    std::time_t epoch_;
 };
 
 class AccelAggregator : public AccelModel {

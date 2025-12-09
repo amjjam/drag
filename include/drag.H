@@ -144,7 +144,20 @@ private:
 
 class SolarRadiationAccel : public AccelModel {
 public:
-    explicit SolarRadiationAccel(double P0, double earth_radius, std::time_t epoch);
+    explicit SolarRadiationAccel(double P0);
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc,
+        const Eigen::Vector3d& pos,
+        const Eigen::Vector3d& vel,
+        double t
+    ) const override;
+private:
+    double P0_;
+};
+
+class DynamicSolarAccel : public AccelModel {
+public:
+    explicit DynamicSolarAccel(double P0, double earth_radius, std::time_t epoch);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,

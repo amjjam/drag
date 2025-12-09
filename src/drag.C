@@ -153,10 +153,26 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
 // SolarRadiationAccel
 // =============================
 
-SolarRadiationAccel::SolarRadiationAccel(double P0, double earth_radius, std::time_t epoch) 
-    : P0_(P0), earth_radius_(earth_radius), epoch_(epoch) {}
+SolarRadiationAccel::SolarRadiationAccel(double P0) : P0_(P0) {}
 
 Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d&,
+    const Eigen::Vector3d&,
+    double
+) const {
+    Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
+    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
+}
+
+// =============================
+// DynamicSolarAccel
+// =============================
+
+DynamicSolarAccel::DynamicSolarAccel(double P0, double earth_radius, std::time_t epoch) 
+    : P0_(P0), earth_radius_(earth_radius), epoch_(epoch) {}
+
+Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d& pos,
     const Eigen::Vector3d&,

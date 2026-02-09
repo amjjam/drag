@@ -92,7 +92,7 @@ private:
 
 class EGM2008GravityAccel : public AccelModel {
 public:
-	explicit EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order);
+	explicit EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order, double gmst0);
 	Eigen::Vector3d computeAcceleration(
 	    const Spacecraft& sc,
 	    const Eigen::Vector3d& pos,
@@ -102,6 +102,7 @@ public:
 private:
 	GeographicLib::GravityModel grav_;
 	double omega_;
+	double gmst0_;
 };
 
 

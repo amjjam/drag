@@ -21,15 +21,16 @@ Eigen::Vector3d GravityAccel::computeAcceleration(
 // EGM2008GravityAccel
 // ==============================
 
-EGM2008GravityAccel::EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order)
-    	: grav_(model_name, "", max_degree, max_order), omega_(GeographicLib::Constants::WGS84_omega()) {}
+EGM2008GravityAccel::EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order, double gmst0)
+    	: grav_(model_name, "", max_degree, max_order), omega_(GeographicLib::Constants::WGS84_omega()),
+	  gmst0_(gmst0) {}
 Eigen::Vector3d EGM2008GravityAccel::computeAcceleration(
 	const Spacecraft&,
 	const Eigen::Vector3d& pos_eci,
 	const Eigen::Vector3d&,
 	double t
 ) const {
-	const double rotation_angle = omega_ * t;
+	const double rotation_angle = gmst0_ + omega_ * t;
 	Eigen::Matrix3d C_e_i;
 	C_e_i <<  cos(rotation_angle), sin(rotation_angle), 0,
 	         -sin(rotation_angle), cos(rotation_angle), 0,

@@ -68,7 +68,7 @@ double Epoch::toGMST() const {
 std::time_t Epoch::toTimeT() const {
     // JD to Unix time (seconds since 1970-01-01)
     // JD 2440587.5 is 1970-01-01 00:00:00 UTC
-    return static_cast<std::time_t>((jd_utc_ - 2440587.5) * 86400.0);
+    return static_cast<std::time_t>(std::round((jd_utc_ - 2440587.5) * 86400.0));
 }
 
 // =============================

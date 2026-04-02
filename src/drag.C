@@ -2,6 +2,76 @@
 #include <cmath>
 
 // =============================
+// Time Management (Epoch)
+// =============================
+
+Epoch::Epoch() : jd_utc_(0.0) {}
+
+Epoch::Epoch(double jd_utc) : jd_utc_(jd_utc) {}
+
+// Inital convertion to UTC Julian Date
+Epoch::Epoch(const std::tm& tm) {
+    int year = tm.tm_year + 1900;
+    int month = tm.tm_mon + 1;
+    int day = tm.tm_mday;
+    int hour = tm.tm_hour;
+    int min = tm.tm_min;
+    int sec = tm.tm_sec;
+
+    if (month <= 2) {
+        year -= 1;
+        month += 12;
+    }
+
+    double A = std::floor(year / 100.0);
+    double B = 2 - A + std::floor(A / 4.0);
+
+    double jd = std::floor(365.25 * (year + 4716)) +
+                std::floor(30.6001 * (month + 1)) +
+                day + B - 1524.5;
+
+    double fraction = (hour + min / 60.0 + sec / 3600.0) / 24.0;
+    jd_utc_ = jd + fraction;
+}
+
+// Operator Overload
+Epoch Epoch::operator+(double seconds) const {
+    // 86400 seconds in a day. Add the fraction of a day to JD.
+    return Epoch(jd_utc_ + (seconds / 86400.0));
+}
+
+double Epoch::toJD() const {
+    return jd_utc_;
+}
+
+// Convert UTC Julian Date to Terrestrial Time Modified Julian Date
+double Epoch::toMjdTT() const {
+    double mjd_utc = jd_utc_ - 2400000.5;
+    // TT is roughly UTC + 69.184 seconds (37s leap seconds + 32.184s offset)
+    return mjd_utc + (69.184 / 86400.0); 
+}
+
+// Get GMST anlge
+double Epoch::toGMST() const {
+    double T_UT1 = (jd_utc_ - 2451545.0) / 36525.0;
+    double gmst_seconds = 67310.54841 + 
+                          (876600.0 * 3600 + 8640184.812866) * T_UT1 + 
+                          0.093104 * T_UT1 * T_UT1 - 
+                          6.2e-6 * T_UT1 * T_UT1 * T_UT1;
+
+    gmst_seconds = std::fmod(gmst_seconds, 86400.0);
+    if (gmst_seconds < 0) gmst_seconds += 86400.0;
+
+    return gmst_seconds * (2.0 * M_PI / 86400.0);
+}
+
+std::time_t Epoch::toTimeT() const {
+    // JD to Unix time (seconds since 1970-01-01)
+    // JD 2440587.5 is 1970-01-01 00:00:00 UTC
+    return static_cast<std::time_t>((jd_utc_ - 2440587.5) * 86400.0);
+}
+
+// =============================
 // GravityAccel
 // =============================
 
@@ -11,7 +81,7 @@ Eigen::Vector3d GravityAccel::computeAcceleration(
     const Spacecraft&,
     const Eigen::Vector3d& pos,
     const Eigen::Vector3d&,
-    double
+    Epoch
 ) const {
     double r = pos.norm();
     return -mu_ * pos / (r * r * r);
@@ -21,16 +91,15 @@ Eigen::Vector3d GravityAccel::computeAcceleration(
 // EGM2008GravityAccel
 // ==============================
 
-EGM2008GravityAccel::EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order, double gmst0)
-    	: grav_(model_name, "", max_degree, max_order), omega_(GeographicLib::Constants::WGS84_omega()),
-	  gmst0_(gmst0) {}
+EGM2008GravityAccel::EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order)
+    	: grav_(model_name, "", max_degree, max_order) {}
 Eigen::Vector3d EGM2008GravityAccel::computeAcceleration(
 	const Spacecraft&,
 	const Eigen::Vector3d& pos_eci,
 	const Eigen::Vector3d&,
-	double t
+	Epoch t
 ) const {
-	const double rotation_angle = gmst0_ + omega_ * t;
+	const double rotation_angle = t.toGMST();
 	Eigen::Matrix3d C_e_i;
 	C_e_i <<  cos(rotation_angle), sin(rotation_angle), 0,
 	         -sin(rotation_angle), cos(rotation_angle), 0,
@@ -45,6 +114,45 @@ Eigen::Vector3d EGM2008GravityAccel::computeAcceleration(
 }
 
 // =============================
+// SunGravityAccel
+// =============================
+
+SunGravityAccel::SunGravityAccel() {}
+
+Eigen::Vector3d SunGravityAccel::computeAcceleration(
+	const Spacecraft&,
+	const Eigen::Vector3d& pos_eci,
+	const Eigen::Vector3d&,
+	Epoch t
+) const {
+	std::time_t current_time = t.toTimeT();
+	Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+	Eigen::Vector3d pos_wrt_sun = pos_eci - sun_pos;
+
+	return (-1.32712438e+20) * (pos_wrt_sun / pow(pos_wrt_sun.norm(),3) + sun_pos / pow(sun_pos.norm(),3));
+}
+
+// =============================
+// MoonGravityAccel
+// =============================
+/*
+MoonGravityAccel::MoonGravityAccel(std::time_t epoch) : epoch_(epoch) {}
+
+Eigen::Vector3d MoonGravityAccel::computeAcceleration(
+        const Spacecraft&,
+        const Eigen::Vector3d& pos_eci,
+        const Eigen::Vecotr3d&,
+        const t
+) const {
+        std::time_t current_time = epoch_ + static_cast<long>(t);
+        Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+        Eigen::Vector3d pos_wrt_sun = pos_eci - sun_pos;
+
+        return (-GM) * (pos_wrt_sun / pow(pos_wrt_sun.norm(),3) + sun_pos / pow(sun_pos.norm(),3));
+}
+*/
+
+// =============================
 // DragAccel
 // =============================
 
@@ -54,7 +162,7 @@ Eigen::Vector3d DragAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d&,
     const Eigen::Vector3d& vel,
-    double
+    Epoch
 ) const {
     double v = vel.norm();
     if (v == 0.0) return Eigen::Vector3d::Zero();
@@ -66,9 +174,8 @@ Eigen::Vector3d DragAccel::computeAcceleration(
 // MSISDragAccel
 // =============================
 
-MsisDragAccel::MsisDragAccel(std::time_t epoch_seconds, double f107a, double f107, double ap)
-    : epoch_start_time(epoch_seconds),
-      f107_avg(f107a),
+MsisDragAccel::MsisDragAccel(double f107a, double f107, double ap)
+    : f107_avg(f107a),
       f107_daily(f107),
       ap_val(ap),
       earth(GeographicLib::Constants::WGS84_a(), GeographicLib::Constants::WGS84_f()),
@@ -98,11 +205,12 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d& pos_eci,
     const Eigen::Vector3d& vel_eci,
-    double t
+    Epoch t
 ) const {
     
     // === 1. Calculate Current Time ===
-    std::time_t current_time_sec = epoch_start_time + static_cast<long>(t);
+    std::time_t current_time_sec = t.toTimeT();
+
     std::tm current_time_utc;
     gmtime_r(&current_time_sec, &current_time_utc); // Thread-safe UTC time
 
@@ -112,7 +220,7 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
                        current_time_utc.tm_sec;
 
     // === 2. Convert ECI Position to Geodetic (Lat, Lon, Alt) ===
-    double rotation_angle = omega * t; // Simplified rotation
+    double rotation_angle = t.toGMST(); // Simplified rotation
     Eigen::Matrix3d C_e_i;  // ECI to ECEF
     C_e_i <<  cos(rotation_angle), sin(rotation_angle), 0,
              -sin(rotation_angle), cos(rotation_angle), 0,
@@ -150,6 +258,7 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
     return a_drag_eci;
 }
 
+
 // =============================
 // SolarRadiationAccel
 // =============================
@@ -160,7 +269,7 @@ Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d&,
     const Eigen::Vector3d&,
-    double
+    Epoch
 ) const {
     Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
     return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
@@ -170,16 +279,16 @@ Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
 // DynamicSolarAccel
 // =============================
 
-DynamicSolarAccel::DynamicSolarAccel(double P0, double earth_radius, std::time_t epoch) 
-    : P0_(P0), earth_radius_(earth_radius), epoch_(epoch) {}
+DynamicSolarAccel::DynamicSolarAccel(double P0, double earth_radius)
+    : P0_(P0), earth_radius_(earth_radius) {}
 
 Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d& pos,
     const Eigen::Vector3d&,
-    double t
+    Epoch t
 ) const {
-    std::time_t current_time = epoch_ + static_cast<long>(t);
+    std::time_t current_time = t.toTimeT();
     Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
     Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
 
@@ -206,7 +315,7 @@ Eigen::Vector3d AccelAggregator::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d& pos,
     const Eigen::Vector3d& vel,
-    double t
+    Epoch t
 ) const {
     Eigen::Vector3d total = Eigen::Vector3d::Zero();
     for (const auto& m : models_) {
@@ -222,7 +331,7 @@ Eigen::Vector3d AccelAggregator::computeAcceleration(
 Dynamics::Dynamics(const Spacecraft& sc, const AccelAggregator& accels)
     : sc_(sc), accels_(accels) {}
 
-State Dynamics::operator()(const State& s, double t) const {
+State Dynamics::operator()(const State& s, Epoch t) const {
     State deriv;
     deriv.pos = s.vel;
     deriv.vel = accels_.computeAcceleration(sc_, s.pos, s.vel, t);
@@ -235,7 +344,7 @@ State Dynamics::operator()(const State& s, double t) const {
 
 State RK4Integrator::step(const Dynamics& dyn,
                           const State& s,
-                          double t,
+                          Epoch t,
                           double dt) const {
     State k1 = dyn(s, t);
     State k2 = dyn({s.pos + 0.5 * dt * k1.pos,
@@ -261,7 +370,7 @@ OrbitPropagator::OrbitPropagator(const Spacecraft& sc,
     : dyn_(sc, accels), integrator_(std::move(integrator)) {}
 
 std::vector<State> OrbitPropagator::propagate(const State& s0,
-                                              double t0,
+                                              Epoch t0,
                                               double dt,
                                               int steps) const {
     std::vector<State> trajectory;
@@ -269,10 +378,10 @@ std::vector<State> OrbitPropagator::propagate(const State& s0,
     trajectory.push_back(s0);
 
     State s = s0;
-    double t = t0;
+    Epoch t = t0;
     for (int i = 0; i < steps; ++i) {
         s = integrator_->step(dyn_, s, t, dt);
-        t += dt;
+        t = t + dt;
         trajectory.push_back(s);
     }
     return trajectory;

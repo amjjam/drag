@@ -24,6 +24,30 @@ struct State {
 };
 
 // =============================
+// Time Management
+// =============================
+
+class Epoch {
+public:
+    // Constructors
+    Epoch();
+    explicit Epoch(const std::tm& utc_time); // From calendar time
+    explicit Epoch(double jd_utc);           // From Julian Date
+
+    // Add seconds to an epoch to get a new epoch
+    Epoch operator+(double seconds) const;
+
+    // Output Formats
+    double toJD() const;           // to Julian Date (UTC)
+    double toMjdTT() const;        // to Modified Julian Date (TT)
+    double toGMST() const;         // to Greenwich Mean Sidereal Time [rad]
+    std::time_t toTimeT() const;   // to Standard Unix timestamp
+
+private:
+    double jd_utc_; // Internal master time
+};
+
+// =============================
 // Spacecraft class
 // =============================
 class Spacecraft {
@@ -72,7 +96,7 @@ public:
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const = 0;
 };
 
@@ -83,7 +107,7 @@ public:
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const override;
 private:
     double mu_;
@@ -92,17 +116,27 @@ private:
 
 class EGM2008GravityAccel : public AccelModel {
 public:
-	explicit EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order, double gmst0);
+	explicit EGM2008GravityAccel(const std::string& model_name, int max_degree, int max_order);
 	Eigen::Vector3d computeAcceleration(
 	    const Spacecraft& sc,
 	    const Eigen::Vector3d& pos,
 	    const Eigen::Vector3d& vel,
-	    double t
+	    Epoch t
 	) const override;
 private:
 	GeographicLib::GravityModel grav_;
-	double omega_;
-	double gmst0_;
+};
+
+
+class SunGravityAccel : public AccelModel {
+public:
+    SunGravityAccel();
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc,
+        const Eigen::Vector3d& pos,
+        const Eigen::Vector3d& vel,
+        Epoch t
+    ) const override;
 };
 
 
@@ -113,7 +147,7 @@ public:
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const override;
 private:
     double rho0_;
@@ -121,20 +155,18 @@ private:
 
 class MsisDragAccel : public AccelModel{
 public:
-    MsisDragAccel(std::time_t epoch_seconds, double f107a, double f107, double ap);
+    MsisDragAccel(double f107a, double f107, double ap);
 
     Eigen::Vector3d computeAcceleration(
 	const Spacecraft& sc,
 	const Eigen::Vector3d& pos,
 	const Eigen::Vector3d& vel,
-	double t
+	Epoch t
     ) const override;
 private:
     double f107_avg;
     double f107_daily;
     double ap_val;
-
-    std::time_t epoch_start_time;
 
     const GeographicLib::Geocentric earth;
     const double omega;
@@ -150,7 +182,7 @@ public:
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const override;
 private:
     double P0_;
@@ -158,17 +190,16 @@ private:
 
 class DynamicSolarAccel : public AccelModel {
 public:
-    explicit DynamicSolarAccel(double P0, double earth_radius, std::time_t epoch);
+    explicit DynamicSolarAccel(double P0, double earth_radius);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const override;
 private:
     double P0_;
     double earth_radius_;
-    std::time_t epoch_;
 };
 
 class AccelAggregator : public AccelModel {
@@ -178,7 +209,7 @@ public:
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
         const Eigen::Vector3d& vel,
-        double t
+        Epoch t
     ) const override;
 private:
     std::vector<std::shared_ptr<AccelModel>> models_;
@@ -191,7 +222,7 @@ private:
 class Dynamics {
 public:
     Dynamics(const Spacecraft& sc, const AccelAggregator& accels);
-    State operator()(const State& s, double t) const;
+    State operator()(const State& s, Epoch t) const;
 private:
     const Spacecraft& sc_;
     const AccelAggregator& accels_;
@@ -206,7 +237,7 @@ public:
     virtual ~Integrator() = default;
     virtual State step(const Dynamics& dyn,
                        const State& s,
-                       double t,
+                       Epoch t,
                        double dt) const = 0;
 };
 
@@ -214,7 +245,7 @@ class RK4Integrator : public Integrator {
 public:
     State step(const Dynamics& dyn,
                const State& s,
-               double t,
+               Epoch t,
                double dt) const override;
 };
 
@@ -229,7 +260,7 @@ public:
                     std::shared_ptr<Integrator> integrator);
 
     std::vector<State> propagate(const State& s0,
-                                 double t0,
+                                 Epoch t0,
                                  double dt,
                                  int steps) const;
 private:

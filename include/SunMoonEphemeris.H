@@ -34,8 +34,10 @@ public:
         double epsilon_rad = (23.439 - 0.0000004 * n) * deg2rad;
 
         // 6. Convert to Cartesian ECI coordinates
+	// Distance Sun-Earth in AU
+	double r_AU = 1.00014 - 0.01671 * cos(g_rad) - 0.00014 * cos(2 * g_rad);
         // 1 AU = 149,597,870,700 meters
-        double r = 149597870700.0;
+        double r = r_AU * 149597870700.0;
 
         return Eigen::Vector3d(
             r * std::cos(lambda_rad),
@@ -47,12 +49,7 @@ public:
 
 // Local funtions
 
-namespace 
-{
-  // Fractional part of a number (y=x-[x])
-  double Frac (double x) { return x-floor(x); };
-}
-
+inline double Frac(double x) {return x - std::floor(x); }
 
 class MoonEphemeris {
 public:

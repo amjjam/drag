@@ -12,7 +12,7 @@
 #include <nrlmsise00/Nrlmsise00.hpp>
 #include <ctime>
 #include <array>
-#include <SunEphemeris.H>
+#include <SunMoonEphemeris.H>
 
 // =============================
 // Data Structures
@@ -139,6 +139,16 @@ public:
     ) const override;
 };
 
+class MoonGravityAccel : public AccelModel {
+public:
+    MoonGravityAccel();
+    Eigen::Vector3d computeAcceleration(
+	const Spacecraft& sc,
+	const Eigen::Vector3d& pos,
+	const Eigen::Vector3d& vel,
+	Epoch t
+    ) const override;
+};
 
 class DragAccel : public AccelModel {
 public:

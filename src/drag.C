@@ -125,32 +125,36 @@ Eigen::Vector3d SunGravityAccel::computeAcceleration(
 	const Eigen::Vector3d&,
 	Epoch t
 ) const {
-	std::time_t current_time = t.toTimeT();
+	double current_time = t.toJD();
 	Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
 	Eigen::Vector3d pos_wrt_sun = pos_eci - sun_pos;
 
-	return (-1.32712438e+20) * (pos_wrt_sun / pow(pos_wrt_sun.norm(),3) + sun_pos / pow(sun_pos.norm(),3));
+	const double GM_Sun = 1.32712438e+20;
+
+	return (-GM_Sun) * (pos_wrt_sun / pow(pos_wrt_sun.norm(),3) + sun_pos / pow(sun_pos.norm(),3));
 }
 
 // =============================
 // MoonGravityAccel
 // =============================
-/*
-MoonGravityAccel::MoonGravityAccel(std::time_t epoch) : epoch_(epoch) {}
+
+MoonGravityAccel::MoonGravityAccel() : {}
 
 Eigen::Vector3d MoonGravityAccel::computeAcceleration(
         const Spacecraft&,
         const Eigen::Vector3d& pos_eci,
-        const Eigen::Vecotr3d&,
-        const t
+        const Eigen::Vector3d&,
+        Epoch t
 ) const {
-        std::time_t current_time = epoch_ + static_cast<long>(t);
-        Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
-        Eigen::Vector3d pos_wrt_sun = pos_eci - sun_pos;
+        double current_time = t.toMjdTT();
+        Eigen::Vector3d moon_pos = MoonEphemeris::getMoonPositionECI(current_time);
+        Eigen::Vector3d pos_wrt_moon = pos_eci - moon_pos;
 
-        return (-GM) * (pos_wrt_sun / pow(pos_wrt_sun.norm(),3) + sun_pos / pow(sun_pos.norm(),3));
+	const double GM_Moon = 398600.4415e+9 / 81.300587;
+
+        return (-GM_Moon) * (pos_wrt_moon / pow(pos_wrt_moon.norm(),3) + moon_pos / pow(moon_pos.norm(),3));
 }
-*/
+
 
 // =============================
 // DragAccel
@@ -288,7 +292,7 @@ Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
     const Eigen::Vector3d&,
     Epoch t
 ) const {
-    std::time_t current_time = t.toTimeT();
+    double current_time = t.toJD();
     Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
     Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
 

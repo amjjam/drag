@@ -138,7 +138,7 @@ Eigen::Vector3d SunGravityAccel::computeAcceleration(
 // MoonGravityAccel
 // =============================
 
-MoonGravityAccel::MoonGravityAccel() : {}
+MoonGravityAccel::MoonGravityAccel() {}
 
 Eigen::Vector3d MoonGravityAccel::computeAcceleration(
         const Spacecraft&,

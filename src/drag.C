@@ -308,6 +308,35 @@ Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
 }
 
 // =============================
+// RelativityAccel
+// =============================
+
+RelativityAccel::RelativityAccel(double mu, double c) 
+    : mu_(mu), c_(c) {}
+
+Eigen::Vector3d RelativityAccel::computeAcceleration(
+    const Spacecraft& sc, 
+    const Eigen::Vector3d& pos, 
+    const Eigen::Vector3d& vel, 
+    Epoch t) const 
+{
+    // Calculate magnitudes and dot product
+    double r_mag = r.norm();
+    double v_mag_sq = v.squaredNorm(); // v^2
+    double r_dot_v = r.dot(v);
+    
+    double c_sq = c_ * c_;
+    
+    // Calculate the scalar term scaling the position vector: (4*mu/r - v^2)
+    double term1 = (4.0 * mu_ / r_mag) - v_mag_sq;
+    
+    // Full IERS equation// accel = (mu / (c^2 * r^3)) * [ term1 * r + 4 * (r dot v) * v ]
+    Eigen::Vector3d accel = (mu_ / (c_sq * r_mag * r_mag * r_mag)) * (term1 * r + 4.0 * r_dot_v * v);
+                            
+    return accel;
+}
+
+// =============================
 // AccelAggregator
 // =============================
 

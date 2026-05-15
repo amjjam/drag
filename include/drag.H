@@ -212,6 +212,22 @@ private:
     double earth_radius_;
 };
 
+class RelativityAccel : public AccelModel {
+public:
+    explicit RelativityAccel(double mu = 398600.4418e9, double c = 299792458.0);
+
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc, 
+        const Eigen::Vector3d& pos, 
+        const Eigen::Vector3d& vel, 
+        Epoch t
+    ) const override;
+
+private:
+    double mu_;
+    double c_;
+}
+
 class AccelAggregator : public AccelModel {
 public:
     void addModel(std::shared_ptr<AccelModel> model);

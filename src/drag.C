@@ -294,17 +294,56 @@ Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
 ) const {
     double current_time = t.toJD();
     Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
-    Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
 
-    double s = pos.dot(sun_dir);
-    if (s < 0) {
-	Eigen::Vector3d dist_vec = pos - (s * sun_dir);
-	double dist_sq = dist_vec.squaredNorm();
- 	if (dist_sq < (earth_radius_ * earth_radius_)) {
-	    return Eigen::Vector3d::Zero();
-        }
+    // Vector from satellite to sun
+    Eigen::Vector3d sat_to_sun = sun_pos - pos;
+    double dist_sat_to_sun = sat_to_sun.norm();
+    Eigen::Vector3d sun_dir = sat_to_sun.normalized();
+
+    // Distance Scaling: Scale flux based on inverse square law
+    double au_ratio = AU_ / dist_sat_to_sun;
+    double scaled_P0 = P0_ * (au_ratio * au_ratio);
+
+    // Conical Shadow (Penumbra) Math
+    double r_sat = pos.norm();
+    
+    // Apparent angular radii of the Sun and Earth from the satellite
+    double a_sun = std::asin(R_SUN_ / dist_sat_to_sun);
+    double a_earth = std::asin(earth_radius_ / r_sat);
+
+    // Angle between Earth center and Sun center
+    Eigen::Vector3d to_earth = -pos.normalized();
+    double theta = std::acos(to_earth.dot(sun_dir));
+
+    double sh = 1.0; // Illumination fraction (1.0 = full sun)
+
+    // Check eclipse conditions
+    if (theta <= a_earth - a_sun) {
+        // Total eclipse (Umbra)
+        sh = 0.0;
     }
-    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * (-sun_dir);
+    else if (theta < a_earth + a_sun) {
+        // Partial eclipse (Penumbra) - Overlapping circles area calculation
+        double c = (a_earth * a_earth - a_sun * a_sun + theta * theta) / (2.0 * theta);
+
+        // Protect against domain errors in acos
+        double arg1 = std::clamp(c / a_earth, -1.0, 1.0);
+        double arg2 = std::clamp((theta - c) / a_sun, -1.0, 1.0);
+
+        double area = a_earth * a_earth * std::acos(arg1) + 
+                      a_sun * a_sun * std::acos(arg2) - 
+                      a_earth * c * std::sin(std::acos(arg1));
+
+        // Area of the sun disk
+        double sun_area = M_PI * a_sun * a_sun;
+        sh = 1.0 - (area / sun_area);
+
+        // Clamp to physical bounds just in case of float precision issues
+        sh = std::clamp(sh, 0.0, 1.0);
+    }
+
+    // Final Acceleration Vector
+    return (scaled_P0 * sc.Cr() * sc.area() / sc.mass()) * sh * sun_dir;
 }
 
 // =============================

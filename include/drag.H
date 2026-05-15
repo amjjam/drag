@@ -200,7 +200,7 @@ private:
 
 class DynamicSolarAccel : public AccelModel {
 public:
-    explicit DynamicSolarAccel(double P0, double earth_radius);
+    explicit DynamicSolarAccel(double P0 = 4.56e-6, double earth_radius = 6378137.0);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,
@@ -210,6 +210,8 @@ public:
 private:
     double P0_;
     double earth_radius_;
+    const double AU_ = 149597870700.0; // 1 AU in meters
+    const double R_SUN_ = 696340000.0; // Sun radius in meters
 };
 
 class RelativityAccel : public AccelModel {

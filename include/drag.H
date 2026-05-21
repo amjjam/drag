@@ -228,7 +228,24 @@ public:
 private:
     double mu_;
     double c_;
-}
+};
+
+class SimpleAlbedoAccel : public AccelModel {
+public:
+    explicit SimpleAlbedoAccel(double earth_radius);
+
+    Eigen::Vector3d computeAcceleration(
+	const Spacecraft& sc,
+	const Eigen::Vector3d& pos,
+	const Eigen::Vector3d&,
+	Epoch t
+    ) const override;
+private:
+    double earth_radius_;
+    const double albedo_coeff_ = 0.30;
+    const double solar_const_ = 1361.0;
+    const double c_ = 299792458;
+};
 
 class AccelAggregator : public AccelModel {
 public:

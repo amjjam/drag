@@ -360,19 +360,50 @@ Eigen::Vector3d RelativityAccel::computeAcceleration(
     Epoch t) const 
 {
     // Calculate magnitudes and dot product
-    double r_mag = r.norm();
-    double v_mag_sq = v.squaredNorm(); // v^2
-    double r_dot_v = r.dot(v);
+    double pos_mag = pos.norm();
+    double vel_mag_sq = vel.squaredNorm(); // v^2
+    double pos_dot_vel = pos.dot(vel);
     
     double c_sq = c_ * c_;
     
     // Calculate the scalar term scaling the position vector: (4*mu/r - v^2)
-    double term1 = (4.0 * mu_ / r_mag) - v_mag_sq;
+    double term1 = (4.0 * mu_ / pos_mag) - vel_mag_sq;
     
     // Full IERS equation// accel = (mu / (c^2 * r^3)) * [ term1 * r + 4 * (r dot v) * v ]
-    Eigen::Vector3d accel = (mu_ / (c_sq * r_mag * r_mag * r_mag)) * (term1 * r + 4.0 * r_dot_v * v);
+    Eigen::Vector3d accel = (mu_ / (c_sq * pos_mag * pos_mag * pos_mag)) * (term1 * pos + 4.0 * pos_dot_vel * vel);
                             
     return accel;
+}
+
+// =============================
+// SimpleAlbedoAccel
+// =============================
+
+SimpleAlbedoAccel::SimpleAlbedoAccel(double earth_radius)
+    : earth_radius_(earth_radius) {}
+
+Eigen::Vector3d SimpleAlbedoAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d& pos,
+    const Eigen::Vector3d&,
+    Epoch t
+) const {
+    double current_time = t.toJD();
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+
+    double cos_sun = sun_pos.dot(pos) / (sun_pos.norm() * pos.norm());
+
+    if (cos_sun <= 0) return Eigen::Vector3d::Zero();
+
+    // F = view factor for a diffusely reflecting sphere
+    double F = (earth_radius_ * earth_radius_) / (pos.norm() * pos.norm());
+    
+    // Albedo Flux in W/m^2
+    double albedo_flux = solar_const_ * albedo_coeff_ * F * cos_sun;
+
+    double rad_press = albedo_flux / c_;
+
+    return pos.normalized() * rad_press * sc.Cr() * sc.area() / sc.mass();
 }
 
 // =============================

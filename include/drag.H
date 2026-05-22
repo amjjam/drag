@@ -197,7 +197,7 @@ private:
     double P0_;
 };
 
-class SRP_CylindricalAccel : public SRP_CylindricalAccel {
+class SRP_CylindricalAccel : public AccelModel {
 public:
     explicit SRP_CylindricalAccel(double P0, double earth_radius);
     Eigen::Vector3d computeAcceleration(

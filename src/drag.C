@@ -207,7 +207,7 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
     const Eigen::Vector3d& vel_eci,
     Epoch t
 ) const {
-    
+    std::array<double, 7> ap_local = ap_array_;
     // === 1. Calculate Current Time ===
     std::time_t current_time_sec = t.toTimeT();
 
@@ -241,7 +241,7 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
         lon,
         f107_avg,
         f107_daily,
-        ap_array_
+        ap_local
     );
     // 'rho' is now in [kg/m^3] because we set flag 0 = 1.
 

@@ -178,10 +178,10 @@ Eigen::Vector3d DragAccel::computeAcceleration(
 // MSISDragAccel
 // =============================
 
-MsisDragAccel::MsisDragAccel(double f107a, double f107, double ap)
+MsisDragAccel::MsisDragAccel(double f107a, double f107, const std::array<double, 7>& ap_array)
     : f107_avg(f107a),
       f107_daily(f107),
-      ap_val(ap),
+      ap_array_(ap_array),
       earth(GeographicLib::Constants::WGS84_a(), GeographicLib::Constants::WGS84_f()),
       omega(GeographicLib::Constants::WGS84_omega())
 {
@@ -199,10 +199,6 @@ MsisDragAccel::MsisDragAccel(double f107a, double f107, double ap)
 
     // Create the model object and store it in our smart pointer
     msis_model_ptr = std::make_unique< ::atmos::CNrlmsise00 >(flags);
-
-    // --- Initialize the AP array ---
-    // Fill the entire array with the single daily 'ap' value
-    ap_array.fill(ap_val);
 }
 
 Eigen::Vector3d MsisDragAccel::computeAcceleration(
@@ -245,7 +241,7 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
         lon,
         f107_avg,
         f107_daily,
-        ap_array // Pass the stored AP array
+        ap_array_
     );
     // 'rho' is now in [kg/m^3] because we set flag 0 = 1.
 
@@ -261,7 +257,6 @@ Eigen::Vector3d MsisDragAccel::computeAcceleration(
 
     return a_drag_eci;
 }
-
 
 // =============================
 // SolarRadiationAccel

@@ -165,7 +165,7 @@ private:
 
 class MsisDragAccel : public AccelModel{
 public:
-    MsisDragAccel(double f107a, double f107, double ap);
+    MsisDragAccel(double f107a, double f107, const std::array<double, 7>& ap_array);
 
     Eigen::Vector3d computeAcceleration(
 	const Spacecraft& sc,
@@ -176,13 +176,12 @@ public:
 private:
     double f107_avg;
     double f107_daily;
-    double ap_val;
+    std::array<double,7> ap_array_;
 
     const GeographicLib::Geocentric earth;
     const double omega;
 
-    mutable std::unique_ptr< ::atmos::CNrlmsise00 > msis_model_ptr;
-    mutable std::array<double, 7> ap_array;
+    std::unique_ptr< ::atmos::CNrlmsise00 > msis_model_ptr;
 };
 
 class SolarRadiationAccel : public AccelModel {

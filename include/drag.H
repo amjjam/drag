@@ -197,9 +197,23 @@ private:
     double P0_;
 };
 
-class DynamicSolarAccel : public AccelModel {
+class SRP_CylindricalAccel : public SRP_CylindricalAccel {
 public:
-    explicit DynamicSolarAccel(double P0 = 4.56e-6, double earth_radius = 6378137.0);
+    explicit SRP_CylindricalAccel(double P0, double earth_radius);
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc,
+        const Eigen::Vector3d& pos,
+        const Eigen::Vector3d& vel,
+        Epoch t
+    ) const override;
+private:
+    double P0_;
+    double earth_radius_;
+};
+
+class SRP_CanonicalAccel : public AccelModel {
+public:
+    explicit SRP_CanonicalAccel(double P0 = 4.56e-6, double earth_radius = 6378137.0);
     Eigen::Vector3d computeAcceleration(
         const Spacecraft& sc,
         const Eigen::Vector3d& pos,

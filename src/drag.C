@@ -275,13 +275,41 @@ Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
 }
 
 // =============================
-// DynamicSolarAccel
+// SRP_CylindricalAccel
 // =============================
 
-DynamicSolarAccel::DynamicSolarAccel(double P0, double earth_radius)
+SRP_CylindricalAccel::SRP_CylindricalAccel(double P0, double earth_radius)
     : P0_(P0), earth_radius_(earth_radius) {}
 
-Eigen::Vector3d DynamicSolarAccel::computeAcceleration(
+Eigen::Vector3d SRP_CylindricalAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d& pos,
+    const Eigen::Vector3d&,
+    Epoch t
+) const {
+    double current_time = t.toJD();
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+    Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
+
+    double s = pos.dot(sun_dir);
+    if (s < 0) {
+	Eigen::Vector3d dist_vec = pos - (s * sun_dir);
+	double dist_sq = dist_vec.squaredNorm();
+ 	if (dist_sq < (earth_radius_ * earth_radius_)) {
+	    return Eigen::Vector3d::Zero();
+        }
+    }
+    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * (-sun_dir);
+}
+
+// =============================
+// SRP_CanonicalAccel
+// =============================
+
+SRP_CanonicalAccel::SRP_CanonicalAccel(double P0, double earth_radius)
+    : P0_(P0), earth_radius_(earth_radius) {}
+
+Eigen::Vector3d SRP_CanonicalAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d& pos,
     const Eigen::Vector3d&,

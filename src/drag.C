@@ -155,6 +155,53 @@ Eigen::Vector3d MoonGravityAccel::computeAcceleration(
         return (-GM_Moon) * (pos_wrt_moon / pow(pos_wrt_moon.norm(),3) + moon_pos / pow(moon_pos.norm(),3));
 }
 
+// ==========================================
+// SolidEarthTidesAccel
+// ==========================================
+
+SolidEarthTidesAccel::SolidEarthTidesAccel(double earth_radius)
+    : earth_radius_(earth_radius) {}
+
+Eigen::Vector3d SolidEarthTidesAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d& pos_eci,
+    const Eigen::Vector3d&, // velocity not needed
+    Epoch t
+) const {
+    // 1. Extract timestamps for the ephemeris models
+    double jd = t.toJD();
+    double mjd_tt = t.toMjdTT();
+
+    // 2. Get celestial body positions
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(jd);
+    Eigen::Vector3d moon_pos = MoonEphemeris::getMoonPositionECI(mjd_tt);
+
+    // 3. Satellite vector math
+    double r_mag = pos_eci.norm();
+    Eigen::Vector3d r_hat = pos_eci.normalized();
+    double Re5_over_r4 = std::pow(earth_radius_, 5) / std::pow(r_mag, 4);
+
+    // 4. Helper lambda to calculate the tide from a single body
+    auto calcTideFromBody = [&](const Eigen::Vector3d& body_pos, double mu_body) -> Eigen::Vector3d {
+        double s_mag = body_pos.norm();
+        Eigen::Vector3d s_hat = body_pos.normalized();
+        
+        double r_dot_s = r_hat.dot(s_hat);
+        
+        // Equation terms
+        double scalar_front = (k2_ * mu_body * Re5_over_r4) / std::pow(s_mag, 3);
+        Eigen::Vector3d term1 = 3.0 * r_dot_s * s_hat;
+        Eigen::Vector3d term2 = 1.5 * (1.0 - 5.0 * r_dot_s * r_dot_s) * r_hat;
+        
+        return scalar_front * (term1 + term2);
+    };
+
+    // 5. Calculate and sum the tidal perturbations
+    Eigen::Vector3d sun_tide = calcTideFromBody(sun_pos, mu_sun_);
+    Eigen::Vector3d moon_tide = calcTideFromBody(moon_pos, mu_moon_);
+
+    return sun_tide + moon_tide;
+}
 
 // =============================
 // DragAccel

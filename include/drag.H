@@ -150,6 +150,26 @@ public:
     ) const override;
 };
 
+class SolidEarthTidesAccel : public AccelModel {
+public:
+    explicit SolidEarthTidesAccel(double earth_radius);
+
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc,
+        const Eigen::Vector3d& pos,
+        const Eigen::Vector3d& vel,
+        Epoch t
+    ) const override;
+
+private:
+    double earth_radius_;
+
+    // Universal constants
+    const double k2_ = 0.3; // Nominal degree-2 Love number
+    const double mu_sun_ = 1.32712438e+20; // Sun GM [m^3/s^2]
+    const double mu_moon_ = 4902.800066e9; // Moon GM [m^3/s^2]
+};
+
 class DragAccel : public AccelModel {
 public:
     explicit DragAccel(double rho0);

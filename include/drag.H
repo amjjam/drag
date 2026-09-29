@@ -260,6 +260,29 @@ private:
     const double c_ = 299792458;
 };
 
+class KnockeEarthRadiationAccel : public AccelModel {
+public:
+    explicit KnockeEarthRadiationAccel(double earth_radius);
+
+    Eigen::Vector3d computeAcceleration(
+        const Spacecraft& sc,
+        const Eigen::Vector3d& pos,
+        const Eigen::Vector3d& vel,
+        Epoch t
+    ) const override;
+
+private:
+    double earth_radius_;
+    
+    // Universal physical constants
+    const double solar_const_ = 1361.0; 
+    const double c_ = 299792458.0; 
+    
+    // The Knocke-Ries baseline constants (e.g., e0 = 0.68, a0 = 0.34) and 
+    // the Legendre polynomial logic will be contained entirely within 
+    // the drag.C implementation file to keep this contract clean.
+};
+
 class AccelAggregator : public AccelModel {
 public:
     void addModel(std::shared_ptr<AccelModel> model);

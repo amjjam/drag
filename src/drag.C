@@ -267,11 +267,13 @@ SolarRadiationAccel::SolarRadiationAccel(double P0) : P0_(P0) {}
 Eigen::Vector3d SolarRadiationAccel::computeAcceleration(
     const Spacecraft& sc,
     const Eigen::Vector3d&,
-    const Eigen::Vector3d&,
-    Epoch
+    const Eigen::Vector3d& vel,
+    Epoch t
 ) const {
-    Eigen::Vector3d sunDir(1.0, 0.0, 0.0); // assume Sun in +x
-    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sunDir;
+    double current_time = t.toJD();
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_time);
+    Eigen::Vector3d sun_dir = sun_pos.normalized(); // Unit vector pointing to Sun
+    return (P0_ * sc.Cr() * sc.area() / sc.mass()) * sun_dir;
 }
 
 // =============================
@@ -427,6 +429,67 @@ Eigen::Vector3d SimpleAlbedoAccel::computeAcceleration(
     double rad_press = albedo_flux / c_;
 
     return pos.normalized() * rad_press * sc.Cr() * sc.area() / sc.mass();
+}
+
+// =============================
+// KnockeEarthRadiationAccel
+// =============================
+
+KnockeEarthRadiationAccel::KnockeEarthRadiationAccel(double earth_radius)
+    : earth_radius_(earth_radius) {}
+
+Eigen::Vector3d KnockeEarthRadiationAccel::computeAcceleration(
+    const Spacecraft& sc,
+    const Eigen::Vector3d& pos_eci,
+    const Eigen::Vector3d&, // velocity not needed
+    Epoch t
+) const {
+    double current_jd = t.toJD();
+    
+    // 1. Calculate Seasonal Phase
+    // The Knocke model bases its seasonal drift on the Winter Solstice (Dec 22).
+    // JD 2451535.5 corresponds to Dec 22, 1999.
+    double days_since_solstice = current_jd - 2451535.5;
+    double phase = (2.0 * M_PI / 365.25) * days_since_solstice;
+
+    // 2. Extract Latitude (The ECI Z-axis optimization)
+    double r_mag = pos_eci.norm();
+    double sin_phi = pos_eci.z() / r_mag; 
+
+    // 3. Evaluate Legendre Polynomials
+    double P1 = sin_phi;
+    double P2 = 0.5 * (3.0 * sin_phi * sin_phi - 1.0);
+
+    // 4. Knocke & Ries Zonal Coefficients
+    // Albedo (Reflected Sunlight) peaks at the poles (ice)
+    double albedo_coeff = 0.34 + 0.10 * std::cos(phase) * P1 + 0.29 * P2;
+    
+    // Emissivity (Infrared Heat) peaks at the equator (dark oceans/land)
+    double emissivity_coeff = 0.68 - 0.07 * std::cos(phase) * P1 - 0.18 * P2;
+
+    // 5. Calculate View Factor (F)
+    double F = (earth_radius_ * earth_radius_) / (r_mag * r_mag);
+
+    // 6. Calculate Infrared Flux (Constant emission, day or night)
+    // The Earth emits roughly 1/4 of the solar constant averaged over its surface
+    double flux_ir = emissivity_coeff * (solar_const_ / 4.0) * F;
+
+    // 7. Calculate Albedo Flux (Only active on the day side)
+    // Extract Sun position using your existing ephemeris class
+    Eigen::Vector3d sun_pos = SunEphemeris::getSunPositionECI(current_jd);
+    double cos_sun = sun_pos.dot(pos_eci) / (sun_pos.norm() * r_mag);
+    
+    double flux_albedo = 0.0;
+    if (cos_sun > 0) {
+        flux_albedo = albedo_coeff * solar_const_ * cos_sun * F;
+    }
+
+    // 8. Total Outgoing Earth Radiation Pressure (ERP)
+    double total_flux = flux_ir + flux_albedo;
+    double rad_press = total_flux / c_;
+
+    // Force pushes radially outward away from the Earth
+    return pos_eci.normalized() * (rad_press * sc.Cr() * sc.area() / sc.mass());
 }
 
 // =============================
